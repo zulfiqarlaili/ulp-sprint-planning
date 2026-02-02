@@ -1,0 +1,9 @@
+{
+  "firstSprintNumber": 1.194,
+  "firstSprintStartDate": "19/01/2026",
+  "sprintLengthDays": 14,
+  "releaseMasters": ["Eizlan", "Zul", "Minker"],
+  "scrumMasters": ["Fahmi", "Rubee", "Anessa", "Zul", "Minker", "Eizlan"],
+  "releaseMasterIndexAtFirstSprint": 0,
+  "scrumMasterIndexAtFirstSprint": 0
+}
