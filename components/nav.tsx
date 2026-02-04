@@ -17,6 +17,7 @@ const navLinks = [
   { href: "/", label: "Home" },
   { href: "/history", label: "History" },
   { href: "/capacity-planner", label: "Capacity Planner" },
+  { href: "/planning-poker", label: "Planning Poker" },
 ] as const;
 
 function NavLink({

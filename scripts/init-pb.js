@@ -106,6 +106,47 @@ async function main() {
         console.log('"capacities" created.');
     }
 
+    // Create 'poker_sessions'
+    let pokerSessionCol = null;
+    try {
+        pokerSessionCol = await pb.collections.getOne('poker_sessions');
+        console.log('Collection "poker_sessions" already exists.');
+    } catch {
+        console.log('Creating "poker_sessions" collection...');
+        pokerSessionCol = await pb.collections.create({
+            name: 'poker_sessions',
+            type: 'base',
+            schema: [
+                { name: 'session_id', type: 'text', required: true, options: { min: 1, max: 50 } },
+                { name: 'owner_name', type: 'text', required: true },
+                { name: 'current_story', type: 'text', required: false },
+                { name: 'revealed', type: 'bool', required: true }
+            ]
+        });
+        console.log('"poker_sessions" created.');
+    }
+
+    // Create 'poker_votes'
+    try {
+        await pb.collections.getOne('poker_votes');
+        console.log('Collection "poker_votes" already exists.');
+    } catch {
+        console.log('Creating "poker_votes" collection...');
+        
+        const voteSchema = [
+            { name: 'session', type: 'relation', required: true, options: { collectionId: pokerSessionCol.id, cascadeDelete: true, maxSelect: 1 } },
+            { name: 'participant_name', type: 'text', required: true },
+            { name: 'vote', type: 'text', required: false }
+        ];
+
+        await pb.collections.create({
+            name: 'poker_votes',
+            type: 'base',
+            schema: voteSchema
+        });
+        console.log('"poker_votes" created.');
+    }
+
     console.log('Schema setup complete!');
 }
 
