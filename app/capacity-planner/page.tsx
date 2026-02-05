@@ -48,6 +48,7 @@ function CapacityPlannerContent() {
     const searchParams = useSearchParams();
     const [sprintId, setSprintId] = useState<string | null>(null);
     const [sprintName, setSprintName] = useState(calculateCurrentSprintName());
+    const [sprintStatus, setSprintStatus] = useState<string>("planned");
     const [sprintHistory, setSprintHistory] = useState<SprintRecord[]>([]);
 
     const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +100,7 @@ function CapacityPlannerContent() {
             if (sprint) {
                 setSprintId(sprint.id);
                 setSprintName(sprint.name);
+                setSprintStatus(sprint.status || "planned");
 
                 setLeadEffortHours(sprint.lead_effort_hours || 8);
                 setSupportEffortHours(sprint.support_effort_hours || 8);
@@ -174,7 +176,7 @@ function CapacityPlannerContent() {
         try {
             const sprintData = {
                 name: sprintName,
-                status: 'active',
+                status: sprintStatus,
                 start_date: new Date().toISOString(),
                 end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                 lead_effort_hours: leadEffortHours,
@@ -249,10 +251,17 @@ function CapacityPlannerContent() {
                 nextName = `${sprintName} (Next)`;
             }
 
-            // 2. Create Sprint Record
+            // 2. Update Current Sprint to FINISHED
+            if (sprintId) {
+                await pb.collection('sprints').update(sprintId, {
+                    status: 'finished'
+                });
+            }
+
+            // 3. Create Sprint Record (Active)
             const sprintData = {
                 name: nextName,
-                status: 'planned',
+                status: 'active',
                 start_date: new Date().toISOString(),
                 end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                 // Copy settings from current state
@@ -363,9 +372,23 @@ function CapacityPlannerContent() {
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:justify-between md:items-center">
                 <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center min-w-0">
-                    <div className="flex items-center gap-2 cursor-pointer select-none" onDoubleClick={() => setIsEditMode(prev => !prev)} title="Double click to toggle Edit Mode">
+                    <div
+                        className={`flex items-center gap-2 select-none ${sprintStatus === 'finished' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                        onDoubleClick={() => {
+                            if (sprintStatus !== 'finished') {
+                                setIsEditMode(prev => !prev);
+                            }
+                        }}
+                        title={sprintStatus === 'finished' ? "Sprint is Finished (Read-Only)" : "Double click to toggle Edit Mode"}
+                    >
                         <h1 className="text-3xl font-bold">Planner</h1>
-                        {isEditMode ? <Unlock className="w-5 h-5 text-green-600" /> : <Lock className="w-5 h-5 text-slate-400" />}
+                        {sprintStatus === 'finished' ? (
+                            <div className="flex items-center text-slate-500 text-sm font-medium border border-slate-300 rounded px-2 py-0.5 bg-slate-100">
+                                <Lock className="w-3 h-3 mr-1" /> Finished
+                            </div>
+                        ) : (
+                            isEditMode ? <Unlock className="w-5 h-5 text-green-600" /> : <Lock className="w-5 h-5 text-slate-400" />
+                        )}
                     </div>
 
                     {/* Sprint Selector */}

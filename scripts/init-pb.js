@@ -36,7 +36,7 @@ async function main() {
                 { name: 'name', type: 'text', required: true },
                 { name: 'start_date', type: 'date', required: true },
                 { name: 'end_date', type: 'date', required: true },
-                { name: 'status', type: 'select', options: { values: ['active', 'planned', 'completed'] }, required: true }
+                { name: 'status', type: 'select', options: { values: ['active', 'finished'] }, required: true }
             ]
         },
         {
@@ -120,7 +120,8 @@ async function main() {
                 { name: 'session_id', type: 'text', required: true, options: { min: 1, max: 50 } },
                 { name: 'owner_name', type: 'text', required: true },
                 { name: 'current_story', type: 'text', required: false },
-                { name: 'revealed', type: 'bool', required: true }
+                { name: 'revealed', type: 'bool', required: true },
+                { name: 'status', type: 'text', required: true, options: { min: null, max: 20 } }
             ]
         });
         console.log('"poker_sessions" created.');
@@ -132,7 +133,7 @@ async function main() {
         console.log('Collection "poker_votes" already exists.');
     } catch {
         console.log('Creating "poker_votes" collection...');
-        
+
         const voteSchema = [
             { name: 'session', type: 'relation', required: true, options: { collectionId: pokerSessionCol.id, cascadeDelete: true, maxSelect: 1 } },
             { name: 'participant_name', type: 'text', required: true },

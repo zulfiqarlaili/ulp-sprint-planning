@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PokerCard } from "@/components/poker-card";
 import { VALID_VOTES, getUniqueParticipantName, calculateVoteStats } from "@/lib/poker-utils";
-import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2 } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2, XCircle, History, Clock, Play, Square } from "lucide-react";
 import type { RecordSubscription } from "pocketbase";
 
 // Module-level flag to prevent duplicate session creation across component remounts
@@ -26,6 +26,14 @@ interface PokerSession {
   owner_name: string;
   revealed: boolean;
   current_story?: string;
+  status: string;
+}
+
+interface RoundHistory {
+  story: string;
+  votes: { name: string; vote: string }[];
+  average: number;
+  timestamp: Date;
 }
 
 interface PokerRoomProps {
@@ -48,6 +56,12 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
   
   const [copied, setCopied] = useState(false);
   const [storyInput, setStoryInput] = useState("");
+  const [roundHistory, setRoundHistory] = useState<RoundHistory[]>([]);
+  
+  // Timer state
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(60);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   // Initialize or join session
   const initializeSession = useCallback(async () => {
@@ -77,7 +91,8 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
               session_id: sessionId,
               owner_name: myName,
               revealed: false,
-              current_story: ''
+              current_story: '',
+              status: 'active'
             });
             console.log('Session created successfully:', sessionId);
           } catch (err: any) {
@@ -235,6 +250,19 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     if (!session || !isOwner) return;
 
     try {
+      // Save current round to history if there are votes
+      const votedParticipants = participants.filter(p => p.vote);
+      if (votedParticipants.length > 0 && session.revealed) {
+        const stats = calculateVoteStats(votedParticipants.map(p => p.vote));
+        const newRound: RoundHistory = {
+          story: session.current_story || 'Untitled Story',
+          votes: votedParticipants.map(p => ({ name: p.name, vote: p.vote! })),
+          average: stats.average || 0,
+          timestamp: new Date()
+        };
+        setRoundHistory(prev => [...prev, newRound]);
+      }
+
       // Reset all votes
       const resetPromises = participants.map(p => 
         pb.collection('poker_votes').update(p.id, { vote: null })
@@ -248,9 +276,38 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       });
 
       setMyVote(null);
+      
+      // Reset timer
+      setTimerRunning(false);
+      setTimeRemaining(60);
+      
+      // Auto-start timer if enabled
+      if (timerEnabled) {
+        setTimerRunning(true);
+      }
     } catch (err: any) {
       console.error("Error resetting round:", err);
       alert("Failed to reset: " + err.message);
+    }
+  };
+
+  // End session (owner only)
+  const handleEndSession = async () => {
+    if (!session || !isOwner) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to end this session? The session will be archived and no further voting will be allowed."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await pb.collection('poker_sessions').update(session.id, {
+        status: 'ended'
+      });
+    } catch (err: any) {
+      console.error("Error ending session:", err);
+      alert("Failed to end session: " + err.message);
     }
   };
 
@@ -355,6 +412,27 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     }
   }, [session]);
 
+  // Timer countdown
+  useEffect(() => {
+    if (!timerRunning || timeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          setTimerRunning(false);
+          // Show notification
+          if (isOwner) {
+            alert('⏰ Time is up! You can now reveal the votes.');
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerRunning, timeRemaining, isOwner]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -436,6 +514,21 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {/* Session Ended Banner */}
+      {session.status === 'ended' && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-destructive">
+              <XCircle className="w-6 h-6 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-lg">This session has ended</p>
+                <p className="text-sm text-muted-foreground">This session has been archived. The data is still viewable, but no further voting is allowed.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Share Link */}
       <Card>
         <CardContent className="pt-6">
@@ -470,7 +563,87 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
                 onBlur={handleStoryUpdate}
                 onKeyPress={(e) => e.key === 'Enter' && handleStoryUpdate()}
                 className="min-h-[44px]"
+                disabled={session.status === 'ended'}
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Timer Controls (Owner Only) */}
+      {isOwner && session.status === 'active' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Voting Timer
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={timerEnabled}
+                      onChange={(e) => {
+                        setTimerEnabled(e.target.checked);
+                        if (!e.target.checked) {
+                          setTimerRunning(false);
+                          setTimeRemaining(60);
+                        } else if (!session.revealed) {
+                          setTimerRunning(true);
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm font-medium">Enable 60-second timer</span>
+                  </label>
+                </div>
+                
+                {timerEnabled && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant={timeRemaining <= 10 ? "destructive" : "secondary"} className="text-lg px-3 py-1">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                    </Badge>
+                    {!session.revealed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (timerRunning) {
+                            setTimerRunning(false);
+                          } else {
+                            setTimeRemaining(60);
+                            setTimerRunning(true);
+                          }
+                        }}
+                        className="min-h-[36px]"
+                      >
+                        {timerRunning ? (
+                          <>
+                            <Square className="w-3 h-3 mr-1" />
+                            Stop
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 mr-1" />
+                            Start
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {timerEnabled && (
+                <p className="text-xs text-muted-foreground">
+                  Timer will automatically start when you reset the round. You&apos;ll receive a notification when time is up.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -491,33 +664,55 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Your Vote</span>
-            {session.revealed && (
-              <Badge variant="secondary">
-                <Eye className="w-3 h-3 mr-1" />
-                Revealed
-              </Badge>
-            )}
-            {!session.revealed && (
-              <Badge variant="outline">
-                <EyeOff className="w-3 h-3 mr-1" />
-                Hidden
-              </Badge>
-            )}
+            <div className="flex gap-2">
+              {timerRunning && !session.revealed && session.status === 'active' && (
+                <Badge variant={timeRemaining <= 10 ? "destructive" : "secondary"}>
+                  <Clock className="w-3 h-3 mr-1" />
+                  {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                </Badge>
+              )}
+              {session.status === 'ended' && (
+                <Badge variant="destructive">
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Session Ended
+                </Badge>
+              )}
+              {session.status === 'active' && session.revealed && (
+                <Badge variant="secondary">
+                  <Eye className="w-3 h-3 mr-1" />
+                  Revealed
+                </Badge>
+              )}
+              {session.status === 'active' && !session.revealed && !timerRunning && (
+                <Badge variant="outline">
+                  <EyeOff className="w-3 h-3 mr-1" />
+                  Hidden
+                </Badge>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {VALID_VOTES.map((value) => (
-              <PokerCard
-                key={value}
-                value={value}
-                selected={myVote === value}
-                disabled={session.revealed}
-                revealed={session.revealed}
-                onClick={() => handleVote(value)}
-              />
-            ))}
-          </div>
+          {session.status === 'ended' ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <XCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-lg font-medium">This session has ended</p>
+              <p className="text-sm mt-1">No further voting is allowed</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-4 justify-center">
+              {VALID_VOTES.map((value) => (
+                <PokerCard
+                  key={value}
+                  value={value}
+                  selected={myVote === value}
+                  disabled={session.revealed}
+                  revealed={session.revealed}
+                  onClick={() => handleVote(value)}
+                />
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -531,13 +726,19 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
             </span>
             {isOwner && (
               <div className="flex gap-2">
-                {session.revealed && (
+                {session.revealed && session.status === 'active' && (
                   <Button onClick={handleReset} variant="outline" size="sm" className="min-h-[44px]">
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Reset Round
                   </Button>
                 )}
-                {!session.revealed && (
+                {session.revealed && session.status === 'active' && (
+                  <Button onClick={handleEndSession} variant="destructive" size="sm" className="min-h-[44px]">
+                    <XCircle className="w-4 h-4 mr-2" />
+                    End Session
+                  </Button>
+                )}
+                {!session.revealed && session.status === 'active' && (
                   <Button 
                     onClick={handleReveal} 
                     disabled={!allVoted}
@@ -637,6 +838,46 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
                 <p className="text-sm text-muted-foreground">Consensus</p>
                 <p className="text-2xl font-bold">{stats.consensus ? '✓' : '✗'}</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Round History */}
+      {roundHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Round History ({roundHistory.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {roundHistory.map((round, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{round.story}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {round.timestamp.toLocaleTimeString()} - Average: {round.average.toFixed(1)}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="text-lg px-3 py-1">
+                      {round.average.toFixed(1)}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {round.votes.map((vote, voteIndex) => (
+                      <div key={voteIndex} className="flex items-center gap-2 bg-muted px-3 py-1 rounded text-sm">
+                        <span className="font-medium">{vote.name}:</span>
+                        <Badge variant="outline" className="text-xs">{vote.vote}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
