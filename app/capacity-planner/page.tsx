@@ -6,6 +6,7 @@ import { TEAM_MEMBERS_CONFIG, CONSTANTS, Role } from "@/lib/capacity-constants";
 import { getConfig, getCurrentSprintIndex, getSprintNumber, formatSprintRelease } from "@/lib/sprint";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -439,39 +440,36 @@ function CapacityPlannerContent() {
                                     <div>
                                         <dt className="text-muted-foreground">Leave (Days)</dt>
                                         <dd>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-full max-w-[80px]"
                                                 min={0}
                                                 value={m.leaveDays}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'leaveDays', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "leaveDays", n)}
                                             />
                                         </dd>
                                     </div>
                                     <div>
                                         <dt className="text-muted-foreground">Public Holiday (Days)</dt>
                                         <dd>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-full max-w-[80px]"
                                                 min={0}
                                                 value={m.publicHolidayDays}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'publicHolidayDays', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "publicHolidayDays", n)}
                                             />
                                         </dd>
                                     </div>
                                     <div>
                                         <dt className="text-muted-foreground">Full Capacity (Points)</dt>
                                         <dd>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-full max-w-[80px]"
                                                 min={0}
                                                 value={m.fullCapacityPoints}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'fullCapacityPoints', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "fullCapacityPoints", n)}
                                             />
                                         </dd>
                                     </div>
@@ -505,33 +503,30 @@ function CapacityPlannerContent() {
                                         <TableCell className="font-medium">{m.name}</TableCell>
                                         <TableCell>{m.role}</TableCell>
                                         <TableCell>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-20"
                                                 min={0}
                                                 value={m.leaveDays}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'leaveDays', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "leaveDays", n)}
                                             />
                                         </TableCell>
                                         <TableCell>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-20"
                                                 min={0}
                                                 value={m.publicHolidayDays}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'publicHolidayDays', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "publicHolidayDays", n)}
                                             />
                                         </TableCell>
                                         <TableCell>
-                                            <Input
-                                                type="number"
+                                            <NumericInput
                                                 className="w-20"
                                                 min={0}
                                                 value={m.fullCapacityPoints}
                                                 disabled={!isEditMode}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMember(idx, 'fullCapacityPoints', parseFloat(e.target.value) || 0)}
+                                                onChange={(n) => updateMember(idx, "fullCapacityPoints", n)}
                                             />
                                         </TableCell>
                                         <TableCell className={`text-right font-bold ${m.currentCapacity < 10 ? 'text-red-500' : 'text-green-600'}`}>
@@ -590,21 +585,19 @@ function CapacityPlannerContent() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <Label>Meeting Hours (Team)</Label>
-                                    <Input
-                                        type="number"
+                                    <NumericInput
                                         value={leadEffortHours}
                                         disabled={!isEditMode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLeadEffortHours(parseFloat(e.target.value) || 0)}
+                                        onChange={setLeadEffortHours}
                                     />
                                     <p className="text-xs text-muted-foreground mt-1">({leadEffortPoints} points)</p>
                                 </div>
                                 <div>
                                     <Label>Support Hours (Team)</Label>
-                                    <Input
-                                        type="number"
+                                    <NumericInput
                                         value={supportEffortHours}
                                         disabled={!isEditMode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSupportEffortHours(parseFloat(e.target.value) || 0)}
+                                        onChange={setSupportEffortHours}
                                     />
                                     <p className="text-xs text-muted-foreground mt-1">({supportEffortPoints} points)</p>
                                 </div>
@@ -617,29 +610,26 @@ function CapacityPlannerContent() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div>
                                     <Label>Release Effort</Label>
-                                    <Input
-                                        type="number"
+                                    <NumericInput
                                         value={releaseEffortPoints}
                                         disabled={!isEditMode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReleaseEffortPoints(parseFloat(e.target.value) || 0)}
+                                        onChange={setReleaseEffortPoints}
                                     />
                                 </div>
                                 <div>
                                     <Label>Lead Effort</Label>
-                                    <Input
-                                        type="number"
+                                    <NumericInput
                                         value={leadEffortPointsInput}
                                         disabled={!isEditMode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLeadEffortPointsInput(parseFloat(e.target.value) || 0)}
+                                        onChange={setLeadEffortPointsInput}
                                     />
                                 </div>
                                 <div>
                                     <Label>Support Effort</Label>
-                                    <Input
-                                        type="number"
+                                    <NumericInput
                                         value={supportEffortPointsInput}
                                         disabled={!isEditMode}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSupportEffortPointsInput(parseFloat(e.target.value) || 0)}
+                                        onChange={setSupportEffortPointsInput}
                                     />
                                 </div>
                             </div>
@@ -671,15 +661,13 @@ function CapacityPlannerContent() {
 
                             <div className="flex items-center gap-2">
                                 <span>Working Capacity (%):</span>
-                                <Input
-                                    type="number"
+                                <NumericInput
                                     className="w-16 h-6 px-1 text-right inline-block"
                                     value={devCapacityFactorPercent}
                                     disabled={!isEditMode}
-                                    step={1}
-                                    max={100}
                                     min={10}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDevCapacityFactorPercent(parseFloat(e.target.value) || 0)}
+                                    max={100}
+                                    onChange={setDevCapacityFactorPercent}
                                 />
                             </div>
                             <div className="text-right text-blue-600 font-bold">{minSprintCapacityDev.toFixed(1)}</div>
@@ -690,15 +678,13 @@ function CapacityPlannerContent() {
                             <div className="text-right">{sumQACurrentCapacity.toFixed(1)}</div>
                             <div className="flex items-center gap-2">
                                 <span>Working Capacity (%):</span>
-                                <Input
-                                    type="number"
+                                <NumericInput
                                     className="w-16 h-6 px-1 text-right inline-block"
                                     value={qaCapacityFactorPercent}
                                     disabled={!isEditMode}
-                                    step={1}
-                                    max={100}
                                     min={10}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQaCapacityFactorPercent(parseFloat(e.target.value) || 0)}
+                                    max={100}
+                                    onChange={setQaCapacityFactorPercent}
                                 />
                             </div>
                             <div className="text-right text-blue-600 font-bold">{minSprintCapacityQA.toFixed(1)}</div>
