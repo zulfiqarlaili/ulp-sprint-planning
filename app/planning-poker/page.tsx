@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { generateSessionId } from "@/lib/poker-utils";
 import { Play } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PlanningPokerLanding() {
   const router = useRouter();
@@ -16,7 +17,7 @@ export default function PlanningPokerLanding() {
 
   const handleCreateSession = async () => {
     if (!name.trim()) {
-      alert("Please enter your name");
+      toast.warning("Please enter your name");
       return;
     }
 
@@ -37,10 +38,10 @@ export default function PlanningPokerLanding() {
     <div className="space-y-8 sm:space-y-12 pb-12">
       {/* Hero headline */}
       <header className="text-center space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           Planning Poker
         </h1>
-        <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+        <p className="text-base text-muted-foreground max-w-xl mx-auto">
           Estimate story points collaboratively with your team in real-time
         </p>
       </header>

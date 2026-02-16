@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PokerCard } from "@/components/poker-card";
 import { VALID_VOTES, getUniqueParticipantName, calculateVoteStats } from "@/lib/poker-utils";
-import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2, XCircle, History, Clock, Play, Square } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2, XCircle, History } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import type { RecordSubscription } from "pocketbase";
 
 // Module-level flag to prevent duplicate session creation across component remounts
@@ -57,11 +60,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
   const [copied, setCopied] = useState(false);
   const [storyInput, setStoryInput] = useState("");
   const [roundHistory, setRoundHistory] = useState<RoundHistory[]>([]);
-  
-  // Timer state
-  const [timerEnabled, setTimerEnabled] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(60);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);
 
   // Initialize or join session
   const initializeSession = useCallback(async () => {
@@ -211,7 +210,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       
     } catch (err: any) {
       console.error("Error joining session:", err);
-      alert("Failed to join session: " + err.message);
+      toast.error("Failed to join session: " + err.message);
     }
   };
 
@@ -227,7 +226,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       setMyVote(newVote);
     } catch (err: any) {
       console.error("Error voting:", err);
-      alert("Failed to submit vote: " + err.message);
+      toast.error("Failed to submit vote: " + err.message);
     }
   };
 
@@ -241,7 +240,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       });
     } catch (err: any) {
       console.error("Error revealing votes:", err);
-      alert("Failed to reveal votes: " + err.message);
+      toast.error("Failed to reveal votes: " + err.message);
     }
   };
 
@@ -276,30 +275,21 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       });
 
       setMyVote(null);
-      
-      // Reset timer
-      setTimerRunning(false);
-      setTimeRemaining(60);
-      
-      // Auto-start timer if enabled
-      if (timerEnabled) {
-        setTimerRunning(true);
-      }
     } catch (err: any) {
       console.error("Error resetting round:", err);
-      alert("Failed to reset: " + err.message);
+      toast.error("Failed to reset round: " + err.message);
     }
   };
 
   // End session (owner only)
-  const handleEndSession = async () => {
+  const handleEndSession = () => {
     if (!session || !isOwner) return;
+    setShowEndSessionDialog(true);
+  };
 
-    const confirmed = window.confirm(
-      "Are you sure you want to end this session? The session will be archived and no further voting will be allowed."
-    );
-
-    if (!confirmed) return;
+  const confirmEndSession = async () => {
+    if (!session) return;
+    setShowEndSessionDialog(false);
 
     try {
       await pb.collection('poker_sessions').update(session.id, {
@@ -307,7 +297,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       });
     } catch (err: any) {
       console.error("Error ending session:", err);
-      alert("Failed to end session: " + err.message);
+      toast.error("Failed to end session: " + err.message);
     }
   };
 
@@ -412,31 +402,12 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     }
   }, [session]);
 
-  // Timer countdown
-  useEffect(() => {
-    if (!timerRunning || timeRemaining <= 0) return;
-
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-          setTimerRunning(false);
-          // Show notification
-          if (isOwner) {
-            alert('⏰ Time is up! You can now reveal the votes.');
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [timerRunning, timeRemaining, isOwner]);
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Skeleton className="h-14 rounded-lg" />
+        <Skeleton className="h-40 rounded-lg" />
+        <Skeleton className="h-64 rounded-lg" />
       </div>
     );
   }
@@ -529,23 +500,17 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
         </Card>
       )}
 
-      {/* Share Link */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground mb-2">Share this link with your team:</p>
-              <code className="block bg-muted px-4 py-2 rounded text-sm break-all">
-                {typeof window !== 'undefined' ? `${window.location.origin}/planning-poker/${sessionId}` : ''}
-              </code>
-            </div>
-            <Button onClick={handleCopyLink} variant="outline" className="min-h-[44px] sm:self-end">
-              {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Share Link - compact bar */}
+      <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-2">
+        <span className="text-xs text-muted-foreground shrink-0">Share:</span>
+        <code className="text-xs flex-1 truncate">
+          {typeof window !== 'undefined' ? `${window.location.origin}/planning-poker/${sessionId}` : ''}
+        </code>
+        <Button onClick={handleCopyLink} variant="ghost" size="sm" className="shrink-0 min-h-[36px]">
+          {copied ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
+          {copied ? 'Copied!' : 'Copy'}
+        </Button>
+      </div>
 
       {/* Story Description (Owner Only) */}
       {isOwner && (
@@ -570,85 +535,6 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
         </Card>
       )}
 
-      {/* Timer Controls (Owner Only) */}
-      {isOwner && session.status === 'active' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Voting Timer
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={timerEnabled}
-                      onChange={(e) => {
-                        setTimerEnabled(e.target.checked);
-                        if (!e.target.checked) {
-                          setTimerRunning(false);
-                          setTimeRemaining(60);
-                        } else if (!session.revealed) {
-                          setTimerRunning(true);
-                        }
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm font-medium">Enable 60-second timer</span>
-                  </label>
-                </div>
-                
-                {timerEnabled && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant={timeRemaining <= 10 ? "destructive" : "secondary"} className="text-lg px-3 py-1">
-                      <Clock className="w-4 h-4 mr-1" />
-                      {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
-                    </Badge>
-                    {!session.revealed && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (timerRunning) {
-                            setTimerRunning(false);
-                          } else {
-                            setTimeRemaining(60);
-                            setTimerRunning(true);
-                          }
-                        }}
-                        className="min-h-[36px]"
-                      >
-                        {timerRunning ? (
-                          <>
-                            <Square className="w-3 h-3 mr-1" />
-                            Stop
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3 h-3 mr-1" />
-                            Start
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {timerEnabled && (
-                <p className="text-xs text-muted-foreground">
-                  Timer will automatically start when you reset the round. You&apos;ll receive a notification when time is up.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Current Story (Non-owners) */}
       {!isOwner && session.current_story && (
         <Card className="bg-muted/50">
@@ -665,12 +551,6 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
           <CardTitle className="flex items-center justify-between">
             <span>Your Vote</span>
             <div className="flex gap-2">
-              {timerRunning && !session.revealed && session.status === 'active' && (
-                <Badge variant={timeRemaining <= 10 ? "destructive" : "secondary"}>
-                  <Clock className="w-3 h-3 mr-1" />
-                  {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
-                </Badge>
-              )}
               {session.status === 'ended' && (
                 <Badge variant="destructive">
                   <XCircle className="w-3 h-3 mr-1" />
@@ -683,7 +563,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
                   Revealed
                 </Badge>
               )}
-              {session.status === 'active' && !session.revealed && !timerRunning && (
+              {session.status === 'active' && !session.revealed && (
                 <Badge variant="outline">
                   <EyeOff className="w-3 h-3 mr-1" />
                   Hidden
@@ -882,6 +762,26 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
           </CardContent>
         </Card>
       )}
+
+      {/* End Session Confirmation Dialog */}
+      <Dialog open={showEndSessionDialog} onOpenChange={setShowEndSessionDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End Session?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to end this session? The session will be archived and no further voting will be allowed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEndSessionDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmEndSession}>
+              End Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
