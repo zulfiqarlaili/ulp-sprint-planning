@@ -1,6 +1,6 @@
-# ULP Sprint Planning
+# Sprint Planner
 
-A simple web app for teams that run **2-week sprints** and rotate **Release Master** and **Scrum Master** duties. It shows who is on duty for the current and next sprint, and lets you browse past and upcoming sprints—all from a single JSON config, no database required.
+A sprint planning tool for agile teams. Track **2-week sprints**, rotate **Release Master** and **Scrum Master** duties, plan team capacity, and run **planning poker** sessions -- all in one place. Configure your team from a single JSON file and get going.
 
 ---
 
@@ -33,7 +33,7 @@ Sprint dates are **calculated** from an anchor (first sprint start date + 14-day
 
 ```bash
 git clone <your-repo-url>
-cd ulp-sprint-planning
+cd sprint-planner
 npm install
 npm run dev
 ```
@@ -130,7 +130,7 @@ The app is read-only for visitors; only people with access to the repo can chang
 ## Project structure
 
 ```
-ulp-sprint-planning/
+sprint-planner/
 ├── app/
 │   ├── page.tsx          # Home (current + next sprint)
 │   ├── history/
