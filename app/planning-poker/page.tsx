@@ -6,13 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { generateSessionId } from "@/lib/poker-utils";
-import { Play } from "lucide-react";
+import { generateSessionId, HOST_ROLES, type Role } from "@/lib/poker-utils";
+import { Play, Monitor, Eye } from "lucide-react";
 import { toast } from "sonner";
+
+const ROLE_ICONS: Record<string, typeof Monitor> = { presenter: Monitor, observer: Eye };
 
 export default function PlanningPokerLanding() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [role, setRole] = useState<Role>("presenter");
   const [isCreating, setIsCreating] = useState(false);
 
   const handleCreateSession = async () => {
@@ -24,8 +27,7 @@ export default function PlanningPokerLanding() {
     setIsCreating(true);
     const sessionId = generateSessionId();
     
-    // Redirect to the new session
-    router.push(`/planning-poker/${sessionId}?owner=true&name=${encodeURIComponent(name.trim())}`);
+    router.push(`/planning-poker/${sessionId}?owner=true&name=${encodeURIComponent(name.trim())}&role=${role}`);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -68,6 +70,35 @@ export default function PlanningPokerLanding() {
                 disabled={isCreating}
                 className="min-h-[44px]"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Your Role</Label>
+              <div className="grid gap-2">
+                {HOST_ROLES.map((r) => {
+                  const Icon = ROLE_ICONS[r.value];
+                  const selected = role === r.value;
+                  return (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setRole(r.value)}
+                      disabled={isCreating}
+                      className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                        selected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      <Icon className={`h-5 w-5 flex-shrink-0 ${selected ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div>
+                        <p className={`text-sm font-medium ${selected ? 'text-primary' : ''}`}>{r.label}</p>
+                        <p className="text-xs text-muted-foreground">{r.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <Button 

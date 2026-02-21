@@ -7,20 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PokerCard } from "@/components/poker-card";
-import { VALID_VOTES, getUniqueParticipantName, calculateVoteStats } from "@/lib/poker-utils";
-import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2, XCircle, History } from "lucide-react";
+import { VALID_VOTES, getUniqueParticipantName, calculateVoteStats, type Role } from "@/lib/poker-utils";
+import { Eye, EyeOff, RotateCcw, Copy, Check, Users, Loader2, XCircle, History, Monitor, Keyboard } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import type { RecordSubscription } from "pocketbase";
 
-// Module-level flag to prevent duplicate session creation across component remounts
 const creatingSessionsSet = new Set<string>();
+
+const PRESENTER_KEY_MAP: Record<string, string> = {
+  '0': '0.5',
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '5': '5',
+};
 
 interface Participant {
   id: string;
   name: string;
   vote: string | null;
+  role: Role;
 }
 
 interface PokerSession {
@@ -43,9 +51,10 @@ interface PokerRoomProps {
   sessionId: string;
   initialIsOwner: boolean;
   initialUserName: string;
+  initialRole?: Role;
 }
 
-export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerRoomProps) {
+export function PokerRoom({ sessionId, initialIsOwner, initialUserName, initialRole = 'voter' }: PokerRoomProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -56,6 +65,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
   const [myRecordId, setMyRecordId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(initialIsOwner);
   const [hasJoined, setHasJoined] = useState(false);
+  const [myRole, setMyRole] = useState<Role>(initialRole);
   
   const [copied, setCopied] = useState(false);
   const [storyInput, setStoryInput] = useState("");
@@ -133,7 +143,8 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       const loadedParticipants: Participant[] = votes.map(v => ({
         id: v.id,
         name: v.participant_name,
-        vote: v.vote || null
+        vote: v.vote || null,
+        role: (v.role as Role) || 'voter'
       }));
 
       setParticipants(loadedParticipants);
@@ -146,6 +157,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
           setMyRecordId(existingParticipant.id);
           setMyName(existingParticipant.participant_name);
           setMyVote(existingParticipant.vote || null);
+          setMyRole((existingParticipant.role as Role) || 'voter');
           setHasJoined(true);
           console.log('Reconnected to existing participant:', existingParticipant.participant_name);
         } else {
@@ -179,10 +191,10 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
         const existingParticipant = existingVotes.find(v => v.id === storedParticipantId);
         
         if (existingParticipant) {
-          // Reconnect to existing participant
           setMyRecordId(existingParticipant.id);
           setMyName(existingParticipant.participant_name);
           setMyVote(existingParticipant.vote || null);
+          setMyRole((existingParticipant.role as Role) || 'voter');
           setHasJoined(true);
           console.log('Reconnected to existing participant');
           return;
@@ -195,11 +207,11 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       // Update state with the name being used
       setMyName(uniqueName);
 
-      // Create vote record for this participant
       const voteRecord = await pb.collection('poker_votes').create({
         session: session.id,
         participant_name: uniqueName,
-        vote: null
+        vote: null,
+        role: myRole
       });
 
       setMyRecordId(voteRecord.id);
@@ -214,9 +226,8 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     }
   };
 
-  // Submit vote
   const handleVote = async (value: string) => {
-    if (!myRecordId || !session || session.revealed) return;
+    if (!myRecordId || !session || session.revealed || myRole === 'observer') return;
 
     try {
       const newVote = myVote === value ? null : value;
@@ -249,8 +260,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     if (!session || !isOwner) return;
 
     try {
-      // Save current round to history if there are votes
-      const votedParticipants = participants.filter(p => p.vote);
+      const votedParticipants = participants.filter(p => p.vote && p.role !== 'observer');
       if (votedParticipants.length > 0 && session.revealed) {
         const stats = calculateVoteStats(votedParticipants.map(p => p.vote));
         const newRound: RoundHistory = {
@@ -358,7 +368,8 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
                 return [...filtered, {
                   id: e.record.id,
                   name: e.record.participant_name,
-                  vote: e.record.vote || null
+                  vote: e.record.vote || null,
+                  role: (e.record.role as Role) || 'voter'
                 }];
               });
 
@@ -390,17 +401,32 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     initializeSession();
   }, [initializeSession]);
 
-  // Auto-join if we have a name from URL (only once for owner)
   useEffect(() => {
     if (session && initialUserName && initialIsOwner && !hasJoined && !myRecordId) {
-      // Check if already joined before
       const storedId = localStorage.getItem(`poker_participant_${sessionId}`);
       if (!storedId) {
-        // Only auto-join if not already joined
         joinSession();
       }
     }
   }, [session]);
+
+  useEffect(() => {
+    if (myRole !== 'presenter' || !hasJoined) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!session || session.revealed || session.status === 'ended') return;
+
+      const voteValue = PRESENTER_KEY_MAP[e.key];
+      if (voteValue) {
+        handleVote(voteValue);
+        toast.success('Vote submitted', { duration: 1500 });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [myRole, hasJoined, session, myVote, myRecordId]);
 
   if (isLoading) {
     return (
@@ -477,11 +503,12 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
     );
   }
 
-  const votedCount = participants.filter(p => p.vote !== null).length;
-  const totalCount = participants.length;
+  const voters = participants.filter(p => p.role !== 'observer');
+  const votedCount = voters.filter(p => p.vote !== null).length;
+  const totalCount = voters.length;
   const allVoted = votedCount === totalCount && totalCount > 0;
 
-  const stats = session.revealed ? calculateVoteStats(participants.map(p => p.vote)) : null;
+  const stats = session.revealed ? calculateVoteStats(voters.map(p => p.vote)) : null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -549,8 +576,15 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Your Vote</span>
+            <span>{myRole === 'observer' ? 'Observer Mode' : 'Your Vote'}</span>
             <div className="flex gap-2">
+              {myRole !== 'voter' && (
+                <Badge variant="outline" className="text-xs capitalize">
+                  {myRole === 'presenter' && <Monitor className="w-3 h-3 mr-1" />}
+                  {myRole === 'observer' && <Eye className="w-3 h-3 mr-1" />}
+                  {myRole}
+                </Badge>
+              )}
               {session.status === 'ended' && (
                 <Badge variant="destructive">
                   <XCircle className="w-3 h-3 mr-1" />
@@ -563,7 +597,7 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
                   Revealed
                 </Badge>
               )}
-              {session.status === 'active' && !session.revealed && (
+              {session.status === 'active' && !session.revealed && myRole !== 'observer' && (
                 <Badge variant="outline">
                   <EyeOff className="w-3 h-3 mr-1" />
                   Hidden
@@ -578,6 +612,45 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
               <XCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-lg font-medium">This session has ended</p>
               <p className="text-sm mt-1">No further voting is allowed</p>
+            </div>
+          ) : myRole === 'observer' ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Eye className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-lg font-medium">You are observing this session</p>
+              <p className="text-sm mt-1">Your vote will not be counted</p>
+            </div>
+          ) : myRole === 'presenter' ? (
+            <div className="text-center py-6">
+              {myVote ? (
+                <div className="space-y-3">
+                  <Keyboard className="w-10 h-10 mx-auto text-primary opacity-70" />
+                  <Badge variant="default" className="text-base px-4 py-1">Vote submitted</Badge>
+                  {!session.revealed && (
+                    <p className="text-xs text-muted-foreground mt-2">Press a key to change your vote</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Monitor className="w-12 h-12 mx-auto text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground">Presenter mode: vote using your keyboard</p>
+                </div>
+              )}
+              <div className="mt-5 rounded-lg border bg-muted/50 p-4 max-w-xs mx-auto">
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center justify-center gap-1">
+                  <Keyboard className="w-3 h-3" />
+                  Keyboard shortcuts
+                </p>
+                <div className="flex justify-center gap-2">
+                  {Object.entries(PRESENTER_KEY_MAP).map(([key, vote]) => (
+                    <div key={key} className="flex flex-col items-center gap-1">
+                      <kbd className="inline-flex h-7 w-7 items-center justify-center rounded border bg-background text-xs font-mono font-semibold shadow-sm">
+                        {key}
+                      </kbd>
+                      <span className="text-[10px] text-muted-foreground">{vote}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex flex-wrap gap-4 justify-center">
@@ -637,15 +710,23 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-3">
             {participants.map((p) => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded border">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{p.name}</span>
+              <div key={p.id} className={`flex items-center justify-between p-3 rounded border ${p.role === 'observer' ? 'opacity-60' : ''}`}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-medium ${p.role === 'observer' ? 'italic' : ''}`}>{p.name}</span>
                   {p.name === session.owner_name && (
                     <Badge variant="secondary" className="text-xs">Owner</Badge>
                   )}
+                  {p.role === 'presenter' && (
+                    <Badge variant="outline" className="text-xs"><Monitor className="w-3 h-3 mr-1" />Presenter</Badge>
+                  )}
+                  {p.role === 'observer' && (
+                    <Badge variant="outline" className="text-xs"><Eye className="w-3 h-3 mr-1" />Observer</Badge>
+                  )}
                 </div>
                 <div>
-                  {session.revealed ? (
+                  {p.role === 'observer' ? (
+                    <Badge variant="outline" className="text-xs">Observer</Badge>
+                  ) : session.revealed ? (
                     <Badge variant={p.vote ? "default" : "outline"} className="text-lg">
                       {p.vote || '?'}
                     </Badge>
@@ -663,15 +744,23 @@ export function PokerRoom({ sessionId, initialIsOwner, initialUserName }: PokerR
           <div className="hidden md:block">
             <div className="space-y-2">
               {participants.map((p) => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded border">
+                <div key={p.id} className={`flex items-center justify-between p-3 rounded border ${p.role === 'observer' ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{p.name}</span>
+                    <span className={`font-medium ${p.role === 'observer' ? 'italic' : ''}`}>{p.name}</span>
                     {p.name === session.owner_name && (
                       <Badge variant="secondary" className="text-xs">Owner</Badge>
                     )}
+                    {p.role === 'presenter' && (
+                      <Badge variant="outline" className="text-xs"><Monitor className="w-3 h-3 mr-1" />Presenter</Badge>
+                    )}
+                    {p.role === 'observer' && (
+                      <Badge variant="outline" className="text-xs"><Eye className="w-3 h-3 mr-1" />Observer</Badge>
+                    )}
                   </div>
                   <div>
-                    {session.revealed ? (
+                    {p.role === 'observer' ? (
+                      <Badge variant="outline" className="text-xs">Observer</Badge>
+                    ) : session.revealed ? (
                       <Badge variant={p.vote ? "default" : "outline"} className="text-lg px-4 py-1">
                         {p.vote || '?'}
                       </Badge>

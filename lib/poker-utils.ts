@@ -8,6 +8,17 @@ export function generateSessionId(): string {
   return crypto.randomUUID().split('-')[0];
 }
 
+export type Role = 'voter' | 'presenter' | 'observer';
+
+/**
+ * Roles available to the host when creating a session.
+ * Participants always join as 'voter' (not shown here).
+ */
+export const HOST_ROLES = [
+  { value: 'presenter' as Role, label: 'Presenter', description: 'Vote privately (for screen sharing)' },
+  { value: 'observer' as Role, label: 'Observer', description: 'Facilitate only, don\'t vote' },
+] as const;
+
 /**
  * Valid story point values for planning poker
  */

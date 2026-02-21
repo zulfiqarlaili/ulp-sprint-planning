@@ -137,7 +137,8 @@ async function main() {
         const voteSchema = [
             { name: 'session', type: 'relation', required: true, options: { collectionId: pokerSessionCol.id, cascadeDelete: true, maxSelect: 1 } },
             { name: 'participant_name', type: 'text', required: true },
-            { name: 'vote', type: 'text', required: false }
+            { name: 'vote', type: 'text', required: false },
+            { name: 'role', type: 'text', required: false }
         ];
 
         await pb.collections.create({
