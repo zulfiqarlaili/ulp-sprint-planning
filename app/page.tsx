@@ -11,6 +11,9 @@ import {
 import { UnboxNextSprint } from "@/components/unbox-next-sprint";
 import { BarChart3, Layers, Users } from "lucide-react";
 
+/** Force dynamic rendering so "days remaining" uses current date, not build-time date. */
+export const dynamic = "force-dynamic";
+
 function getSprintProgress(config: ReturnType<typeof getConfig>, index: number) {
   const start = getSprintStartDate(config, index);
   const end = getSprintEndDate(config, index);
