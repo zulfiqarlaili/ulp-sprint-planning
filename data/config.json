@@ -1,5 +1,6 @@
 {
   "firstSprintNumber": 1.194,
+  "historyThroughSprintNumber": 1.230,
   "firstSprintStartDate": "19/01/2026",
   "sprintLengthDays": 14,
   "releaseMasters": ["Eizlan", "Zul", "Minker"],

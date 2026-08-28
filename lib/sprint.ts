@@ -2,6 +2,8 @@ import configJson from "@/data/config.json";
 
 export type SprintConfig = {
   firstSprintNumber: number;
+  /** Last sprint number to include in history (inclusive), e.g. 1.230. */
+  historyThroughSprintNumber?: number;
   firstSprintStartDate: string;
   sprintLengthDays: number;
   releaseMasters: string[];
@@ -144,7 +146,15 @@ export function getNextSprintIndex(cfg: SprintConfig): number {
   return getCurrentSprintIndex(cfg) + 1;
 }
 
-/** History: sprint records for indices [current - pastCount, current + futureCount], newest first. Marks current sprint with isCurrent. */
+/** Sprint index for a sprint number such as 1.230, relative to firstSprintNumber. */
+export function getIndexForSprintNumber(cfg: SprintConfig, sprintNumber: number): number {
+  const major = Math.floor(cfg.firstSprintNumber);
+  const sequenceStart = Math.round((cfg.firstSprintNumber - major) * 1000);
+  const sequence = Math.round((sprintNumber - Math.floor(sprintNumber)) * 1000);
+  return sequence - sequenceStart;
+}
+
+/** History: sprint records newest first. Starts at the configured first sprint (index 0). Ends at historyThroughSprintNumber when set, otherwise current + futureCount. Always includes the current sprint. */
 export function getHistory(
   cfg: SprintConfig,
   pastCount: number,
@@ -152,7 +162,16 @@ export function getHistory(
 ): SprintRecord[] {
   const current = getCurrentSprintIndex(cfg);
   const records: SprintRecord[] = [];
-  for (let i = current - pastCount; i <= current + futureCount; i++) {
+  let startIndex = Math.max(0, current - pastCount);
+  let endIndex = current + futureCount;
+  if (cfg.historyThroughSprintNumber != null) {
+    startIndex = 0;
+    endIndex = Math.max(
+      current,
+      getIndexForSprintNumber(cfg, cfg.historyThroughSprintNumber)
+    );
+  }
+  for (let i = startIndex; i <= endIndex; i++) {
     const record = getSprintRecord(cfg, i);
     record.isCurrent = i === current;
     records.push(record);
@@ -179,9 +198,13 @@ export function validateNoSamePerson(
   }
 }
 
-/** Get the app config (single source). Validates RM !== SM for the next 24 sprints; throws if invalid. */
+/** Get the app config (single source). Validates RM !== SM through the history end sprint (or the next 24). */
 export function getConfig(): SprintConfig {
   const current = getCurrentSprintIndex(config);
-  validateNoSamePerson(config, current, 24);
+  const throughIndex =
+    config.historyThroughSprintNumber != null
+      ? getIndexForSprintNumber(config, config.historyThroughSprintNumber)
+      : current + 24;
+  validateNoSamePerson(config, 0, Math.max(throughIndex, current) + 1);
   return config;
 }
