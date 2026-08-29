@@ -67,6 +67,54 @@ export function getSprintEndDate(cfg: SprintConfig, index: number): Date {
   );
 }
 
+/** Format Date as yyyy-mm-dd (UTC). */
+export function formatIsoYyyyMmDd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Weekdays (Mon–Fri) in the sprint, in order. Typically 10 dates. */
+export function getSprintWorkingDates(cfg: SprintConfig, index: number): Date[] {
+  const start = getSprintStartDate(cfg, index);
+  const dates: Date[] = [];
+  for (let offset = 0; offset < cfg.sprintLengthDays; offset++) {
+    const d = new Date(start.getTime() + offset * 24 * 60 * 60 * 1000);
+    const day = d.getUTCDay();
+    if (day !== 0 && day !== 6) dates.push(d);
+  }
+  return dates;
+}
+
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export type SprintWorkingDay = {
+  iso: string;
+  weekday: string;
+  dayNum: number;
+  week: 1 | 2;
+  shortLabel: string;
+};
+
+export function getSprintWorkingDays(cfg: SprintConfig, index: number): SprintWorkingDay[] {
+  return getSprintWorkingDates(cfg, index).map((d, i) => {
+    const weekday = WEEKDAY_SHORT[d.getUTCDay()];
+    const dayNum = d.getUTCDate();
+    return {
+      iso: formatIsoYyyyMmDd(d),
+      weekday,
+      dayNum,
+      week: i < 5 ? 1 : 2,
+      shortLabel: `${weekday} ${dayNum}`,
+    };
+  });
+}
+
+/** Parse "Sprint 1.195.0" or "Sprint 1.195" to 1.195. */
+export function parseSprintNameToNumber(name: string): number | null {
+  const match = name.match(/(\d+)\.(\d+)/);
+  if (!match) return null;
+  return parseInt(match[1], 10) + parseInt(match[2], 10) / 1000;
+}
+
 /** Format as "dd/mm/yyyy – dd/mm/yyyy". */
 export function formatDateRange(start: Date, end: Date): string {
   return `${formatDdMmYyyy(start)} – ${formatDdMmYyyy(end)}`;

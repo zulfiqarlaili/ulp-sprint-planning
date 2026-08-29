@@ -50,6 +50,7 @@ async function main() {
                 { name: 'total_staff', type: 'number', required: false },
                 { name: 'working_days', type: 'number', required: false },
                 { name: 'leave_days', type: 'number', required: false },
+                { name: 'leave_dates', type: 'json', required: false },
                 { name: 'overhead_perc', type: 'number', required: false }
             ]
         }
@@ -95,6 +96,7 @@ async function main() {
             { name: 'total_staff', type: 'number' },
             { name: 'working_days', type: 'number' },
             { name: 'leave_days', type: 'number' },
+            { name: 'leave_dates', type: 'json' },
             { name: 'overhead_perc', type: 'number' }
         ];
 

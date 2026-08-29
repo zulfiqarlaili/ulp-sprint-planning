@@ -3,7 +3,9 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { TEAM_MEMBERS_CONFIG, CONSTANTS, Role } from "@/lib/capacity-constants";
-import { getConfig, getCurrentSprintIndex, getSprintNumber, formatSprintRelease } from "@/lib/sprint";
+import { getConfig, getCurrentSprintIndex, getSprintNumber, formatSprintRelease, getSprintWorkingDays, parseSprintNameToNumber, getIndexForSprintNumber } from "@/lib/sprint";
+import { parseLeaveDates, effectiveLeaveDays } from "@/lib/leave-dates";
+import { LeaveDayPicker } from "@/components/leave-day-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -23,7 +25,7 @@ type TeamMemberState = {
     name: string;
     role: Role;
     leaveDays: number;
-    publicHolidayDays: number;
+    leaveDates: string[];
     fullCapacityPoints: number;
     id?: string;
 };
@@ -140,7 +142,7 @@ function CapacityPlannerContent() {
                         name: name,
                         role: role,
                         leaveDays: dbRecord?.leave_days || 0,
-                        publicHolidayDays: dbRecord?.public_holiday_days || 0,
+                        leaveDates: parseLeaveDates(dbRecord?.leave_dates),
                         fullCapacityPoints: dbRecord?.full_capacity_points || 20,
                         id: dbRecord?.id
                     });
@@ -152,7 +154,7 @@ function CapacityPlannerContent() {
                     name: m.name,
                     role: m.role as Role,
                     leaveDays: 0,
-                    publicHolidayDays: 0,
+                    leaveDates: [] as string[],
                     fullCapacityPoints: 20
                 }));
                 setMembers(initialMembers);
@@ -202,14 +204,15 @@ function CapacityPlannerContent() {
             }
 
             await Promise.all(members.map(async (m) => {
+                const leaveDays = effectiveLeaveDays(m.leaveDates, m.leaveDays);
                 const capData = {
                     sprint: currentSprintId,
                     name: m.name,
                     role: m.role,
-                    leave_days: m.leaveDays,
-                    public_holiday_days: m.publicHolidayDays,
+                    leave_days: leaveDays,
+                    leave_dates: m.leaveDates,
                     full_capacity_points: m.fullCapacityPoints,
-                    working_days: 10 - m.leaveDays - m.publicHolidayDays,
+                    working_days: 10 - leaveDays,
                 };
 
                 if (m.id) {
@@ -278,6 +281,7 @@ function CapacityPlannerContent() {
                     name: m.name,
                     role: m.role,
                     leave_days: 0,
+                    leave_dates: [],
                     public_holiday_days: 0,
                     full_capacity_points: m.fullCapacityPoints,
                     working_days: 10,
@@ -304,12 +308,21 @@ function CapacityPlannerContent() {
                 name: newMemberName,
                 role: newMemberRole,
                 leaveDays: 0,
-                publicHolidayDays: 0,
+                leaveDates: [],
                 fullCapacityPoints: 20
             }
         ]);
         setNewMemberName("");
     };
+
+    const workingDays = useMemo(() => {
+        const config = getConfig();
+        const parsed = parseSprintNameToNumber(sprintName);
+        const index = parsed != null
+            ? getIndexForSprintNumber(config, parsed)
+            : getCurrentSprintIndex(config);
+        return getSprintWorkingDays(config, index);
+    }, [sprintName]);
 
     const leadEffortPoints = leadEffortHours * CONSTANTS.HOURS_TO_POINTS;
     const supportEffortPoints = supportEffortHours * CONSTANTS.HOURS_TO_POINTS;
@@ -317,15 +330,16 @@ function CapacityPlannerContent() {
 
     const calculatedMembers = useMemo(() => {
         return members.map(m => {
-            const leavePoints = m.leaveDays * CONSTANTS.DAYS_TO_POINTS;
-            const phPoints = m.publicHolidayDays * CONSTANTS.DAYS_TO_POINTS;
-            const deduction = leavePoints + phPoints + totalSharedDeductionPoints;
+            const effectiveLeave = effectiveLeaveDays(m.leaveDates, m.leaveDays);
+            const leavePoints = effectiveLeave * CONSTANTS.DAYS_TO_POINTS;
+            const deduction = leavePoints + totalSharedDeductionPoints;
 
             let currentCapacity = m.fullCapacityPoints - deduction;
             if (currentCapacity < 0) currentCapacity = 0;
 
             return {
                 ...m,
+                leaveDays: effectiveLeave,
                 currentCapacity
             };
         });
@@ -335,6 +349,14 @@ function CapacityPlannerContent() {
         setMembers(prev => {
             const newMembers = [...prev];
             newMembers[index] = { ...newMembers[index], [field]: value };
+            return newMembers;
+        });
+    };
+
+    const updateMemberLeaveDates = (index: number, leaveDates: string[]) => {
+        setMembers(prev => {
+            const newMembers = [...prev];
+            newMembers[index] = { ...newMembers[index], leaveDates, leaveDays: leaveDates.length };
             return newMembers;
         });
     };
@@ -462,6 +484,9 @@ function CapacityPlannerContent() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-lg">Team Capacity ({sprintName})</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Double-click the title to edit, then click a day to mark leave. Changes stick after Save.
+                        </p>
                     </CardHeader>
                     <CardContent>
                         {/* Mobile: card per member */}
@@ -480,16 +505,17 @@ function CapacityPlannerContent() {
                                         </Badge>
                                     </div>
                                     <dl className="grid grid-cols-2 gap-2 text-sm">
-                                        <div>
-                                            <dt className="text-muted-foreground">Leave (Days)</dt>
+                                        <div className="col-span-2">
+                                            <dt className="text-muted-foreground mb-1">
+                                                Leave ({m.leaveDates.length > 0 ? m.leaveDates.length : m.leaveDays} days)
+                                            </dt>
                                             <dd>
-                                                <NumericInput className="w-full max-w-[80px]" min={0} value={m.leaveDays} disabled={!isEditMode} onChange={(n) => updateMember(idx, "leaveDays", n)} />
-                                            </dd>
-                                        </div>
-                                        <div>
-                                            <dt className="text-muted-foreground">Public Holiday</dt>
-                                            <dd>
-                                                <NumericInput className="w-full max-w-[80px]" min={0} value={m.publicHolidayDays} disabled={!isEditMode} onChange={(n) => updateMember(idx, "publicHolidayDays", n)} />
+                                                <LeaveDayPicker
+                                                    days={workingDays}
+                                                    selected={m.leaveDates}
+                                                    disabled={!isEditMode}
+                                                    onChange={(dates) => updateMemberLeaveDates(idx, dates)}
+                                                />
                                             </dd>
                                         </div>
                                         <div>
@@ -516,8 +542,7 @@ function CapacityPlannerContent() {
                                     <TableRow>
                                         <TableHead>Member</TableHead>
                                         <TableHead>Role</TableHead>
-                                        <TableHead>Leave (Days)</TableHead>
-                                        <TableHead>Public Holiday (Days)</TableHead>
+                                        <TableHead>Leave</TableHead>
                                         <TableHead>Full Capacity (Pts)</TableHead>
                                         <TableHead className="text-right">
                                             <Tooltip>
@@ -528,7 +553,7 @@ function CapacityPlannerContent() {
                                                     </span>
                                                 </TooltipTrigger>
                                                 <TooltipContent side="top" className="max-w-xs">
-                                                    <p>Net Capacity = Full Capacity - (Leave + PH) x 2 - Shared Overhead ({sharedOverheadTotal} pts)</p>
+                                                    <p>Net Capacity = Full Capacity - Leave × 2 - Shared Overhead ({sharedOverheadTotal} pts)</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TableHead>
@@ -551,10 +576,21 @@ function CapacityPlannerContent() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <NumericInput className="w-20" min={0} value={m.leaveDays} disabled={!isEditMode} onChange={(n) => updateMember(idx, "leaveDays", n)} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <NumericInput className="w-20" min={0} value={m.publicHolidayDays} disabled={!isEditMode} onChange={(n) => updateMember(idx, "publicHolidayDays", n)} />
+                                                <div className="space-y-1">
+                                                    <LeaveDayPicker
+                                                        days={workingDays}
+                                                        selected={m.leaveDates}
+                                                        disabled={!isEditMode}
+                                                        onChange={(dates) => updateMemberLeaveDates(idx, dates)}
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {m.leaveDates.length > 0
+                                                            ? `${m.leaveDates.length} day${m.leaveDates.length === 1 ? "" : "s"} selected`
+                                                            : m.leaveDays > 0
+                                                                ? `${m.leaveDays} days saved (pick days to replace)`
+                                                                : "No leave"}
+                                                    </p>
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <NumericInput className="w-20" min={0} value={m.fullCapacityPoints} disabled={!isEditMode} onChange={(n) => updateMember(idx, "fullCapacityPoints", n)} />
@@ -566,6 +602,25 @@ function CapacityPlannerContent() {
                                     ))}
                                 </TableBody>
                             </Table>
+                        </div>
+
+                        <div className="mt-6 rounded-lg border bg-muted/40 p-4">
+                            <h3 className="text-sm font-semibold mb-3">Who&apos;s out this sprint</h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                {workingDays.map((day) => {
+                                    const out = members.filter((m) => m.leaveDates.includes(day.iso));
+                                    return (
+                                        <div key={day.iso} className="rounded-md border bg-background p-2 min-h-[56px]">
+                                            <p className="text-xs font-medium">{day.shortLabel}</p>
+                                            {out.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground mt-1">Everyone in</p>
+                                            ) : (
+                                                <p className="text-xs mt-1">{out.map((m) => m.name).join(", ")}</p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {isEditMode && (
@@ -685,7 +740,7 @@ function CapacityPlannerContent() {
                         <DialogHeader>
                             <DialogTitle>Start Next Sprint?</DialogTitle>
                             <DialogDescription>
-                                This will create a new sprint and copy your current team members. Leave days and public holidays will be reset to 0.
+                                This will create a new sprint and copy your current team members. Leave days will be reset to 0.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>

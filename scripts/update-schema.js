@@ -70,6 +70,7 @@ async function main() {
             { name: 'total_staff', type: 'number' },
             { name: 'working_days', type: 'number' },
             { name: 'leave_days', type: 'number' },
+            { name: 'leave_dates', type: 'json' },
             { name: 'public_holiday_days', type: 'number' },
             { name: 'full_capacity_points', type: 'number' },
             { name: 'overhead_perc', type: 'number' }

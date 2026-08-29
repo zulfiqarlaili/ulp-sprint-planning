@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "pb": "cd pocketbase && ./pocketbase serve"
+    "pb": "cd pocketbase && ./pocketbase serve",
+    "pb:add-leave-dates": "node scripts/add-leave-dates-field.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
