@@ -4,6 +4,8 @@ export const TEAM_MEMBERS_CONFIG = [
     { name: 'Zul', role: 'Engineer' },
     { name: 'Eizlan', role: 'Engineer' },
     { name: 'Minker', role: 'Engineer' },
+    { name: 'Kio', role: 'Engineer' },
+    { name: 'Brian', role: 'Engineer' },
     { name: 'Anessa', role: 'QA' },
     { name: 'Rubee', role: 'QA' },
     // Fahmi is excluded from capacity planning
