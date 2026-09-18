@@ -60,10 +60,10 @@ All data lives in **`data/config.json`**. Edit this file to match your team and 
 | `firstSprintNumber` | Sprint number of the “first” sprint (e.g. `1.194`). Used to compute Sprint/Release numbers for all sprints. |
 | `firstSprintStartDate` | Start date of that sprint in **dd/mm/yyyy** (e.g. `"19/01/2026"`). Must be a **Monday**. |
 | `sprintLengthDays` | Length of each sprint in days (e.g. `14`). Used to compute which sprint a date falls into. |
-| `releaseMasters` | Array of names in **rotation order**. One person is Release Master per sprint; the list cycles. |
-| `scrumMasters` | Array of names in **rotation order**. One person is Scrum Master per sprint; the list cycles. |
-| `releaseMasterIndexAtFirstSprint` | Index in `releaseMasters` for who was RM in the first sprint (usually `0` if the first name was on duty). |
-| `scrumMasterIndexAtFirstSprint` | Index in `scrumMasters` for who was SM in the first sprint (usually `0` if the first name was on duty). |
+| `rotations` | Roster periods. Each era has `fromSprintNumber` plus RM/SM lists. A sprint uses the latest era whose `fromSprintNumber` is less than or equal to that sprint. Add a new era when the team changes so past History stays frozen. |
+| `releaseMasters` / `scrumMasters` | Optional fallback if `rotations` is omitted: a single roster from `firstSprintNumber`. |
+
+Each rotation era also has `releaseMasterIndexAtFirstSprint` and `scrumMasterIndexAtFirstSprint`. Those seeds are relative to sprint **index 0** (the first sprint), not the start of the era.
 
 ### Example
 
@@ -72,14 +72,19 @@ All data lives in **`data/config.json`**. Edit this file to match your team and 
   "firstSprintNumber": 1.194,
   "firstSprintStartDate": "19/01/2026",
   "sprintLengthDays": 14,
-  "releaseMasters": ["Eizlan", "Zul", "Minker"],
-  "scrumMasters": ["Fahmi", "Rubee", "Anessa", "Zul", "Minker", "Eizlan"],
-  "releaseMasterIndexAtFirstSprint": 0,
-  "scrumMasterIndexAtFirstSprint": 0
+  "rotations": [
+    {
+      "fromSprintNumber": 1.194,
+      "releaseMasters": ["Eizlan", "Zul", "Minker"],
+      "scrumMasters": ["Fahmi", "Rubee", "Anessa", "Zul", "Minker", "Eizlan"],
+      "releaseMasterIndexAtFirstSprint": 0,
+      "scrumMasterIndexAtFirstSprint": 0
+    }
+  ]
 }
 ```
 
-With seeds `0` and `0`, the **first** sprint (the one starting `19/01/2026`) has **Eizlan** as Release Master and **Fahmi** as Scrum Master. The app then rotates through the lists for every sprint before and after.
+With seeds `0` and `0`, the **first** sprint (the one starting `19/01/2026`) has **Eizlan** as Release Master and **Fahmi** as Scrum Master. The app then rotates through that era’s lists until a later era begins.
 
 ---
 
@@ -99,18 +104,17 @@ To keep the rule when changing config:
 
 ### Add a person
 
-- Append the name to `releaseMasters` or `scrumMasters` (order = rotation).
-- Re-check that the same person is never RM and SM in the same sprint.
+- Add a **new rotation era** from the current (or next) sprint with the updated lists. Do not edit an era that already covers past sprints.
+- Re-check that the same person is never RM and SM in the same sprint **within that era**.
 
 ### Remove a person
 
-- Remove the name from the relevant array.
+- Add a new era without that name, instead of editing the historical era.
 
 ### Change rotation order
 
-- Reorder names in `releaseMasters` and/or `scrumMasters`.
-- Optionally adjust `releaseMasterIndexAtFirstSprint` and `scrumMasterIndexAtFirstSprint` if you want the “first” sprint’s assignment to stay the same.
-- Ensure the no-RM/SM-same-person rule still holds.
+- Add a new era with the new order from the sprint where it should take effect.
+- Ensure the no-RM/SM-same-person rule still holds for that era.
 
 ---
 

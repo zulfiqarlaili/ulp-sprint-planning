@@ -3,8 +3,20 @@
   "historyThroughSprintNumber": 1.230,
   "firstSprintStartDate": "19/01/2026",
   "sprintLengthDays": 14,
-  "releaseMasters": ["Eizlan", "Zul", "Minker", "Kio", "Brian"],
-  "scrumMasters": ["Minker", "Kio", "Brian", "Eizlan", "Fahmi", "Rubee", "Anessa", "Nikita", "Fahmi", "Zul"],
-  "releaseMasterIndexAtFirstSprint": 0,
-  "scrumMasterIndexAtFirstSprint": 0
+  "rotations": [
+    {
+      "fromSprintNumber": 1.194,
+      "releaseMasters": ["Eizlan", "Zul", "Minker"],
+      "scrumMasters": ["Fahmi", "Rubee", "Anessa", "Zul", "Minker", "Eizlan"],
+      "releaseMasterIndexAtFirstSprint": 0,
+      "scrumMasterIndexAtFirstSprint": 0
+    },
+    {
+      "fromSprintNumber": 1.211,
+      "releaseMasters": ["Eizlan", "Zul", "Minker", "Kio", "Brian"],
+      "scrumMasters": ["Minker", "Kio", "Brian", "Eizlan", "Fahmi", "Rubee", "Anessa", "Nikita", "Fahmi", "Zul"],
+      "releaseMasterIndexAtFirstSprint": 0,
+      "scrumMasterIndexAtFirstSprint": 0
+    }
+  ]
 }

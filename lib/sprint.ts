@@ -1,15 +1,27 @@
 import configJson from "@/data/config.json";
 
+export type RotationEra = {
+  /** First sprint number this roster applies to (inclusive). */
+  fromSprintNumber: number;
+  releaseMasters: string[];
+  scrumMasters: string[];
+  releaseMasterIndexAtFirstSprint: number;
+  scrumMasterIndexAtFirstSprint: number;
+};
+
 export type SprintConfig = {
   firstSprintNumber: number;
   /** Last sprint number to include in history (inclusive), e.g. 1.230. */
   historyThroughSprintNumber?: number;
   firstSprintStartDate: string;
   sprintLengthDays: number;
-  releaseMasters: string[];
-  scrumMasters: string[];
-  releaseMasterIndexAtFirstSprint: number;
-  scrumMasterIndexAtFirstSprint: number;
+  /** Ordered roster periods. The latest era whose fromSprintNumber is <= a sprint is used. */
+  rotations?: RotationEra[];
+  /** Fallback when `rotations` is omitted (single era from firstSprintNumber). */
+  releaseMasters?: string[];
+  scrumMasters?: string[];
+  releaseMasterIndexAtFirstSprint?: number;
+  scrumMasterIndexAtFirstSprint?: number;
 };
 
 export type SprintRecord = {
@@ -125,22 +137,57 @@ function mod(a: number, n: number): number {
   return ((a % n) + n) % n;
 }
 
+function getRotations(cfg: SprintConfig): RotationEra[] {
+  if (cfg.rotations && cfg.rotations.length > 0) {
+    return [...cfg.rotations].sort((a, b) => a.fromSprintNumber - b.fromSprintNumber);
+  }
+  if (!cfg.releaseMasters?.length || !cfg.scrumMasters?.length) {
+    throw new Error(
+      "Config invalid: provide rotations, or both releaseMasters and scrumMasters."
+    );
+  }
+  return [
+    {
+      fromSprintNumber: cfg.firstSprintNumber,
+      releaseMasters: cfg.releaseMasters,
+      scrumMasters: cfg.scrumMasters,
+      releaseMasterIndexAtFirstSprint: cfg.releaseMasterIndexAtFirstSprint ?? 0,
+      scrumMasterIndexAtFirstSprint: cfg.scrumMasterIndexAtFirstSprint ?? 0,
+    },
+  ];
+}
+
+/** Roster era in effect for the given sprint index. */
+export function getRotationForIndex(cfg: SprintConfig, index: number): RotationEra {
+  const rotations = getRotations(cfg);
+  const sprintNumber = getSprintNumber(cfg, index);
+  let chosen = rotations[0];
+  for (const rotation of rotations) {
+    if (rotation.fromSprintNumber <= sprintNumber + 1e-9) {
+      chosen = rotation;
+    }
+  }
+  return chosen;
+}
+
 /** Release Master for the given sprint index. */
 export function getReleaseMaster(cfg: SprintConfig, index: number): string {
+  const rotation = getRotationForIndex(cfg, index);
   const i = mod(
-    cfg.releaseMasterIndexAtFirstSprint + index,
-    cfg.releaseMasters.length
+    rotation.releaseMasterIndexAtFirstSprint + index,
+    rotation.releaseMasters.length
   );
-  return cfg.releaseMasters[i];
+  return rotation.releaseMasters[i];
 }
 
 /** Scrum Master for the given sprint index. */
 export function getScrumMaster(cfg: SprintConfig, index: number): string {
+  const rotation = getRotationForIndex(cfg, index);
   const i = mod(
-    cfg.scrumMasterIndexAtFirstSprint + index,
-    cfg.scrumMasters.length
+    rotation.scrumMasterIndexAtFirstSprint + index,
+    rotation.scrumMasters.length
   );
-  return cfg.scrumMasters[i];
+  return rotation.scrumMasters[i];
 }
 
 /** Sprint number (e.g. 1.164, 1.165, 1.166) for the given index. Excel format: major version 1, sequence 164+index. */
@@ -240,7 +287,7 @@ export function validateNoSamePerson(
     const sm = getScrumMaster(cfg, i);
     if (rm === sm) {
       throw new Error(
-        `Config invalid: same person (${rm}) is Release Master and Scrum Master for sprint index ${i}. Reorder releaseMasters or scrumMasters so they never clash.`
+        `Config invalid: same person (${rm}) is Release Master and Scrum Master for sprint index ${i}. Reorder that era's releaseMasters or scrumMasters so they never clash.`
       );
     }
   }
